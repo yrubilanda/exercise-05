@@ -1,0 +1,121 @@
+---
+title: "Exercise-05"
+format: html
+---
+
+## Challenge 1
+```{r}
+#load library
+library(tidyverse)
+library(dplyr)
+library(mosaic)
+```
+
+### Step 1 
+```{r}
+#assign csv file to variable f
+f <- "https://raw.githubusercontent.com/difiore/ada-datasets/main/IMDB-movies.csv"
+
+#using tidyverse load csv data set as "tibble", read_csv <- tibble
+d <- read_csv(f, col_names = TRUE)
+```
+
+### Step 2 
+```{r}
+#filter through dataset d to include movies from 1920 to 1979 and movies between 1 and 3 hours long
+#https://stackoverflow.com/questions/66821113/how-to-map-years-into-subsequent-decades-in-r
+d_filtered <- d |>
+  filter(runtimeMinutes >= 60, runtimeMinutes <= 180 & startYear >= 1920, startYear <= 1979) |> #filters through data and only keeps movies that are 60-180 minutes in length and are from 1920 to 1979
+  mutate(decade = paste0((startYear - 1900) %/% 10 * 10, "'s") #creates a new column named decade, subtracts 1900 from year and then divides and multiplies by 10
+  )
+```
+
+### Step 3 
+```{r}
+#plots histogram of the distribution of runtimeMinutes for each decade
+#https://stackoverflow.com/questions/50290657/show-multiple-histogram-using-facet-wrap
+p <- ggplot(data = d_filtered, aes(x=runtimeMinutes)) + 
+  geom_histogram() +
+  facet_wrap("decade")
+p
+```
+
+### Step 4 
+```{r}
+#calculate the population mean and population standard deviation in runtimeMinutes for each decase
+results <- d_filtered |> #saves results in df called results
+  group_by(decade) |> #groups by decade
+  dplyr::summarise(mean = mean(runtimeMinutes), sd = sd(runtimeMinutes)) #mean and sd
+```
+
+### Step 5 
+```{r}
+n <- 100 #sample size
+
+#single sample s of 100 movies w/o replacement from each decade
+s_random <- d_filtered |> #goes through filtered data
+  group_by(decade) |> #groups by decade
+  slice_sample(n = n, replace = FALSE) #randomly selects samples
+```
+
+```{r}
+s_randmean <- mean(sample(s_random$runtimeMinutes, size = n, replace = FALSE)) #mean of runtime of random sample s 
+s_randsd <- sd(sample(s_random$runtimeMinutes, size = n, replace = FALSE)) #sd of runtime of random sample s 
+s_randmean
+s_randsd
+```
+
+### Step 6
+```{r}
+s_randse <- sd(s_random$runtimeMinutes)/sqrt(length(s_random$runtimeMinutes)) #SE for runtime of random sample s
+s_randse
+```
+
+### Step 7
+```{r}
+s_actual <- d_filtered |> #goes through filtered data
+  group_by(decade) #groups by decade
+
+s_actualmean <- mean(sample(s_actual$runtimeMinutes, size = n, replace = FALSE)) #mean of runtime of random sample s 
+s_actualsd <- sd(sample(s_actual$runtimeMinutes, size = n, replace = FALSE)) #sd of runtime of random sample s 
+s_actualmean
+s_actualsd
+```
+```{r}
+s_actualse <- sd(s_actual$runtimeMinutes)/sqrt(length(s_actual$runtimeMinutes)) #SE for runtime of random sample s
+s_actualse
+```
+The means are fairly similar ~ 100 but the standard error is lower in the actual population (.26) versus the random sample of 100 (.84).
+
+### Step 8
+
+```{r}
+reps <- 1000 
+
+s <- do(reps) * { #running through 1000 samples
+  d_filtered |> #of my filtered data
+    group_by(decade) |> #grouped by decade
+    summarise(
+      mean = mean(sample(runtimeMinutes, size = 100, replace = FALSE)), #the mean for 100 samples
+      sd = sd(sample(runtimeMinutes, size = 100, replace = FALSE)) # the sd for 100 samples
+      )}
+s
+```
+### Step 9
+```{r}
+se_mean <- mean(s$mean)
+se_mean
+
+se_sd <- sd(s$mean)
+se_sd
+```
+
+```{r}
+p <- ggplot(data = s, aes(x=mean)) + 
+  geom_histogram() +
+  facet_wrap("decade")
+p
+```
+The shape is a normal distribution
+
+### Step 10
