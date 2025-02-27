@@ -9,6 +9,9 @@ format: html
 library(tidyverse)
 library(dplyr)
 library(mosaic)
+library(ggplot2)
+library(infer)
+
 ```
 
 ### Step 1 
@@ -119,3 +122,290 @@ p
 The shape is a normal distribution
 
 ### Step 10
+
+## Challenge 2
+
+## Step 1
+```{r}
+f <- "https://raw.githubusercontent.com/difiore/ada-datasets/main/zombies.csv"
+```
+
+```{r}
+d <- read_csv(f, col_names = TRUE)
+```
+```{r}
+
+#calculate population statistic
+population_stats <- d |>
+  
+  summarize(
+    
+    #calculate means
+    mean_height = mean(height),
+    mean_weight = mean(weight),
+    mean_age = mean(age),
+    mean_kills = mean(zombies_killed),
+    mean_education = mean(years_of_education),
+    
+    #calculate standard deviations
+    #https://stackoverflow.com/questions/44339070/calculating-population-standard-deviation-in-r
+    #sqrt(sum((x - mean(x))^2)/(n))
+    sd_height = sqrt(sum((height - mean_height))^2/n()),
+    sd_weight = sqrt(sum((weight - mean_weight))^2/n()),
+    sd_age = sqrt(sum((age - mean_age))^2/n()),
+    sd_kills = sqrt(sum((zombies_killed - mean_kills))^2/n()),
+    sd_education = sqrt(sum((years_of_education - mean_education))^2/n()),
+  )
+
+population_stats
+```
+### Step 3
+
+```{r}
+# first, we use `tidyr::pivot_longer()` to convert our data from wide to long <- module 9
+#https://ggplot2-book.org/scales
+# format this is so we can use `facet.grid()`
+d_long <- pivot_longer(d, c("height", "weight", "age", "zombies_killed", "years_of_education"),
+                       names_to = "Variable",
+                       values_to = "Value")
+
+p <-ggplot(data = d_long, aes(x = gender, y = Value, fill = gender)) +
+  geom_boxplot(na.rm = TRUE, outlier.shape = NA) +
+  facet_wrap(~Variable, scales = "free", nrow = 1) +
+  scale_fill_manual(values = c("Male" = "royalblue2", "Female" = "plum2"))   # Custom colors: https://learn.saylor.org/mod/book/view.php?id=58477&chapterid=45002 & https://sape.inf.usi.ch/quick-reference/ggplot2/colour
+p                                                                             
+```
+
+### Step 4
+```{r}
+# Reshape data into long format for faceting
+d_long <- pivot_longer(d, c("height", "weight"), 
+                       names_to = "Variable", 
+                       values_to = "Value")
+
+p <- ggplot(d_long, aes(x = age, y = Value, color = gender)) +
+  geom_point(alpha = 0.6, size = 2) +  # Scatterplot points
+  geom_smooth(method = "lm", se = TRUE, linetype = "dashed") +  # Add trend line
+  facet_wrap(~Variable, nrow = 1) +  # Facet in one row
+  scale_color_manual(values = c("Male" = "royalblue2", "Female" = "plum2"))
+
+p
+```
+yes the variables are related, males tend to be on the larger height and weight size, while females are consistently on the smaller side of males. Both males and females have a strong postive correlation for height/weight and age meaning that as age increases so does height/weight.
+
+### Step 5
+```{r}
+
+d_long_step4 <- pivot_longer(d, c("height", "weight", "age", "zombies_killed", "years_of_education"),
+                       names_to = "Variable",
+                       values_to = "Value")
+
+# === 1. Histograms ===
+hist_plot <- ggplot(d_long_step4, aes(x = Value)) +
+  geom_histogram(aes(y = ..density..), bins = 30, fill = "lightsteelblue2", color = "black", alpha = 0.4) +
+  geom_density(color = "violetred", size = 1) +  # Overlay density curve
+  facet_wrap(~Variable, scales = "free", nrow = 1) +  # Facet all histograms in one row
+  labs(title = "Histograms of Quantitative Variables", x = "Value", y = "Density")
+
+# === 2. Q-Q Plots ===
+qq_plot <- ggplot(d_long_step4, aes(sample = Value)) +
+  stat_qq() +
+  stat_qq_line(color = "violetred") +  # Add reference normal line
+  facet_wrap(~Variable, scales = "free", nrow = 1) +  # Facet Q-Q plots in one row
+  labs(title = "Q-Q Plots for Normality Check", x = "Theoretical Quantiles", y = "Sample Quantiles")
+
+hist_plot
+qq_plot
+```
+
+### Step 6
+```{r}
+sample_50 <- slice_sample(d, n = 50)
+
+sample50_stats <- sample_50 |>
+  
+  summarize(
+    
+    #calculate means
+    mean_height = mean(height),
+    mean_weight = mean(weight),
+    mean_age = mean(age),
+    mean_kills = mean(zombies_killed),
+    mean_education = mean(years_of_education),
+    
+    #calculate standard deviations
+    sd_height = sd(height),
+    sd_weight = sd(weight),
+    sd_age = sd(age),
+    sd_kills = sd(zombies_killed),
+    sd_education = sd(years_of_education),
+  )
+
+#standard error
+n <- 50  # Sample size
+sample50_stats <- sample50_stats |>
+  mutate(
+    se_height = sd_height / sqrt(n),
+    se_weight = sd_weight / sqrt(n),
+    se_age = sd_age / sqrt(n),
+    se_kills = sd_kills / sqrt(n),
+    se_education = sd_education / sqrt(n)
+  )
+
+sample50_stats
+```
+```{r}
+z_critical <- 1.96  #95% critical value
+
+sample50_stats <- sample50_stats |>
+  mutate(
+    ci_lower_height = mean_height - z_critical * se_height,
+    ci_upper_height = mean_height + z_critical * se_height,
+    
+    ci_lower_weight = mean_weight - z_critical * se_weight,
+    ci_upper_weight = mean_weight + z_critical * se_weight,
+    
+    ci_lower_age = mean_age - z_critical * se_age,
+    ci_upper_age = mean_age + z_critical * se_age,
+    
+    ci_lower_zombies_killed = mean_kills - z_critical * se_kills,
+    ci_upper_zombies_killed = mean_kills + z_critical * se_kills,
+    
+    ci_lower_years_of_education = mean_education - z_critical * se_education,
+    ci_upper_years_of_education = mean_education + z_critical * se_education
+  )
+
+sample50_stats
+```
+### Step 7
+```{r}
+sampling_distribution <- d |>
+  rep_sample_n(size = 50, reps = 199, replace = FALSE) |>  # Draw 199 samples
+  group_by(replicate) |> # Group by sample number
+  summarise(
+    mean_height = mean(height),
+    mean_weight = mean(weight),
+    mean_age = mean(age),
+    mean_kills = mean(zombies_killed),
+    mean_education = mean(years_of_education)
+  )
+```
+
+```{r}
+
+# Combine the first sample's means with the 199 additional samples
+sampling_distribution <- bind_rows(sampling_distribution, sample50_stats |> select(starts_with("mean_")))
+
+# Compute the mean and standard deviation of the sampling distribution
+sampling_stats <- sampling_distribution |>
+  summarise(
+    mean_of_means_height = mean(mean_height),
+    mean_of_means_weight = mean(mean_weight),
+    mean_of_means_age = mean(mean_age),
+    mean_of_means_kills = mean(mean_kills),
+    mean_of_means_education = mean(mean_education),
+    
+    sd_sampling_height = sd(mean_height),
+    sd_sampling_weight = sd(mean_weight),
+    sd_sampling_age = sd(mean_age),
+    sd_sampling_kills = sd(mean_kills),
+    sd_sampling_education = sd(mean_education)
+  )
+
+sampling_stats
+```
+```{r}
+comparison_table <- tibble(
+  Variable = c("Height", "Weight", "Age", "Kills", "Education"),
+  
+  # Standard deviation of the sampling distribution (from 200 sample means)
+  Sampling_Distribution_SD = c(
+    sampling_stats$sd_sampling_height,
+    sampling_stats$sd_sampling_weight,
+    sampling_stats$sd_sampling_age,
+    sampling_stats$sd_sampling_kills,
+    sampling_stats$sd_sampling_education
+  ),
+  
+  # Standard error from the first sample
+  First_Sample_SE = c(
+    sample50_stats$se_height,
+    sample50_stats$se_weight,
+    sample50_stats$se_age,
+    sample50_stats$se_kills,
+    sample50_stats$se_education
+  )
+)
+comparison_table
+```
+the sampling distribution SD and the first sample standard errors are somewhat close for the most part.
+
+### Step 8
+
+```{r}
+# Convert sampling distribution to long format
+sampling_long_step8 <- pivot_longer(sampling_distribution, 
+                                    cols = starts_with("mean_"), 
+                                    names_to = "Variable", 
+                                    values_to = "Value")
+
+# Rename variables for headings
+sampling_long_step8$Variable <- recode(sampling_long_step8$Variable,
+  "mean_height" = "Height",
+  "mean_weight" = "Weight",
+  "mean_age" = "Age",
+  "mean_kills" = "Kills",
+  "mean_education" = "Education"
+)
+
+hist_plot_step8 <- ggplot(sampling_long_step8, aes(x = Value)) +
+  geom_histogram(aes(y = ..density..), bins = 30, fill = "lightsteelblue2", color = "black", alpha = 0.4) +
+  geom_density(color = "violetred", size = 1) +  # Overlay density curve
+  facet_wrap(~Variable, scales = "free", nrow = 1) +  # Facet all histograms in one row
+  labs(title = "Sampling Distributions of Sample Means", x = "Sample Mean Value", y = "Density")
+
+hist_plot_step8
+```
+
+The samples look like a normal distribution, because of the CLT the sampling distribution for skewed variables still looks normal
+
+### Step 9
+
+```{r}
+ci_step9 <- sampling_distribution |> 
+  summarise(
+    height_ci = quantile(mean_height, probs = c(0.025, 0.975)),
+    weight_ci = quantile(mean_weight, probs = c(0.025, 0.975)),
+    age_ci = quantile(mean_age, probs = c(0.025, 0.975)),
+    kills_ci = quantile(mean_kills, probs = c(0.025, 0.975)),
+    education_ci = quantile(mean_education, probs = c(0.025, 0.975))
+  )
+
+ci_step9
+```
+
+They are fairly similar to when I created the 200 sampling distribution
+
+
+```{r}
+# Function to generate bootstrapped CI for a single variable, 
+bootstrap_ci <- function(data, variable) {
+  data |> 
+    specify(response = {{ variable }}) |>  
+    generate(reps = 1000, type = "bootstrap") |> 
+    calculate(stat = "mean") |> 
+    summarise(ci = quantile(stat, probs = c(0.025, 0.975)))
+}
+
+# Compute 95% CIs for all variables
+ci_bootstrap <- tibble(
+  height_ci = bootstrap_ci(d, height)$ci,
+  weight_ci = bootstrap_ci(d, weight)$ci,
+  age_ci = bootstrap_ci(d, age)$ci,
+  kills_ci = bootstrap_ci(d, zombies_killed)$ci,
+  education_ci = bootstrap_ci(d, years_of_education)$ci
+)
+
+ci_bootstrap
+```
+They are still fairly similar, they range by around +- 1 but for the most part they are close.
